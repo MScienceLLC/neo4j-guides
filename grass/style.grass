@@ -22,14 +22,14 @@ node.* {
   defaultCaption: "{name}";
 }
 
-node.InternalKnowledge {
+node.ItemKnowledge {
   color: #F79767;
   border-color: #f36924;
   text-color-internal: #FFFFFF;
   defaultCaption: "{name}";
   caption: "{name}";
 }
-node.ExternalKnowledge {
+node.CompanyKnowledge {
   color: #DA7194;
   border-color: #cc3c6c;
   text-color-internal: #FFFFFF;

@@ -1,14 +1,17 @@
 = OaaS - Graph Demo
 
 == Overview
+[.text-right]
+_Tip: Click the pin icon to keep this guide at the top of this page._
 
-This is a 75k node subset of the knowledge graph which powers OaaS. It contains the brands, companies, and metadata which can be returned from an OaaS labeling task.
+[.text-left]
+This is a 65k node subset of the knowledge graph which powers OaaS. It contains the brands, companies, and metadata which can be returned from an OaaS labeling task.
 
 Cypher is the query language used to navigate this graph. While we've found Cypher to be the most useful, GraphQL can also be used if enabled. Please contact us if you're familiar with GraphQL and prefer to use it.
 
 Note that this is a read-only demo; any Cypher queries which delete or modify nodes will fail.
 
-This guide contains a few sample queries to help you get started. Note that due to limitations of javascript/browsers, queries hundreds/thousands of nodes will most likely crash your web browser. If querying through a scripting language (for example, in Python using the [Neo4j Python Library](https://pypi.org/project/neo4j-driver/)) these limitations won't apply.
+This guide contains a few sample queries to help you get started. Note that due to limitations of javascript/browsers, queries hundreds/thousands of nodes will most likely crash your web browser. If querying through a scripting language (for example, in Python using the https://pypi.org/project/neo4j-driver/[Neo4j Python Library]) these limitations won't apply.
 
 == Node Types
 
@@ -16,7 +19,7 @@ Each node in the graph has one or more types. The hierarchy of node types is bel
 
 Most nodes have a property called `name`; exceptions will be listed below.
 
-* ExternalKnowledge
+* CompanyKnowledge
 ** Company
 ** Country
 ** Currency
@@ -25,7 +28,7 @@ Most nodes have a property called `name`; exceptions will be listed below.
 ** Ticker
 ** Exchange
 ** ExternalID (these nodes have both a `type` property as well as a `name` property)
-* InternalKnowledge
+* ItemKnowledge
 ** Attribute
 *** Brand
 ** Item (these nodes only have an ID. They serve as hubs for a collection of `Attribute`-type nodes which together identify an `Item` with a particular level of specificity. At this point, only `Brand`-type `Attribute` nodes are included.)
@@ -41,39 +44,39 @@ match (c) -- (industry:Industry) -- (s:Sector)
 return (c), (ticker), (industry), (s), (exchange)
 ----
 
-To query for all brands under "Vans, Inc.", including the metadata for Vans and/or its parent company:
+To query for all brands under "Vans, Inc.", including the metadata for Vans and/or its immediate parent company:
 [source,cypher]
 ----
 match (c:Company {name: "Vans, Inc."})
-match (n:InternalKnowledge) -- (c)
+match (n:ItemKnowledge) -- (c)
 match (a:Attribute) -- (n)
-match (parent:Company) -- (c)
+match (parent:Company) -[:PARENT_OF]- (c)
 match (country:Country) -- (c)
-match (ek:ExternalKnowledge) -[*1..2]- (parent)
+match (ek:CompanyKnowledge) -[*1..2]- (parent)
 where not ek:Company and not ek:Country
 return (c), (n), (a), (parent), (ek), (country)
 ----
 
 == Additional Structure Queries
 
-An interesting case is when the same brand text is used by more than one company. Situations where the same brand is used by 4 or more companies can be searched via:
+An interesting case is when the same brand text is used by more than one company. Situations where the same brand is used by 2 or more companies can be searched via:
 
 [source,cypher]
 ----
 match (b:Brand)
 match (i:Item) -- (b)
-where apoc.node.degree.out(b, "ATTR_OF") > 3
+where apoc.node.degree.out(b, "ATTR_OF") > 1
 match (c:Company) -- (i)
 return (b), (i), (c)
 ----
 
-Many of these are situations where the brand is registered in multiple jurisdictions which roll up to the same parent, but not always. For example, "Dual Clean" is associated with both Johnson & Johnson and Proctor & Gamble:
+Many of these are situations where the brand is registered in multiple jurisdictions which roll up to the same parent, but not always. For example, "Dual Clean" is associated with both Johnson & Johnson and Gillette/Proctor & Gamble:
 
 [source,cypher]
 ----
-match (b:Brand {name: "Dual Clean"}) -- (i:Item) -- (c:Company) -- (parent:Company) -- (:Ticker)
+match (b:Brand {name: "Dual Clean"}) -- (i:Item) -- (c:Company) -[:PARENT_OF*0..10]- (parent:Company) -- (:Ticker)
 match (country:Country) -- (c)
-match (ek:ExternalKnowledge) -[*1..2]- (parent)
+match (ek:CompanyKnowledge) -[*1..2]- (parent)
 where not ek:Company and not ek:Country
 return (c), (parent), (ek), (country), (b), (i)
 ----
@@ -88,7 +91,7 @@ For example, a listing of all parent companies, their tickers, the number of sub
 
 [source,cypher]
 ----
-match (child:Company) -- (parent:Company) -- (t:Ticker)
+match (child:Company) -[:PARENT_OF*0..10]- (parent:Company) -- (t:Ticker)
 with parent.name as parent_company_name, t.name as ticker, count(child) as number_of_children, (parent)
 match (parent) -- (child:Company) -- (:Item) -- (b:Brand)
 return parent_company_name, ticker, number_of_children, count(b) as number_of_brands
